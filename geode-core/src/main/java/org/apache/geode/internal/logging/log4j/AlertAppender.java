@@ -18,6 +18,7 @@ import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.util.Date;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
@@ -39,12 +40,13 @@ import org.apache.geode.internal.tcp.ReenteredConnectException;
 /**
  * A Log4j Appender which will notify listeners whenever a message of the requested level is written
  * to the log file.
- * 
  */
 public final class AlertAppender extends AbstractAppender implements PropertyChangeListener {
-  private static final String APPENDER_NAME = AlertAppender.class.getName();
+  // TODO: appender impl should use StatusLogger
   private static final Logger logger = LogService.getLogger();
-  private static final AlertAppender instance = new AlertAppender();
+
+  private static final String APPENDER_NAME = AlertAppender.class.getName();
+  private static final AlertAppender instance = createAlertAppender();
 
   /** Is this thread in the process of alerting? */
   private static final ThreadLocal<Boolean> alerting = new ThreadLocal<Boolean>() {
@@ -54,17 +56,34 @@ public final class AlertAppender extends AbstractAppender implements PropertyCha
     }
   };
 
+  private static final AtomicReference<InternalDistributedSystem> system = new AtomicReference<>();
+
   // Listeners are ordered with the narrowest levels (e.g. FATAL) at the end
-  private final CopyOnWriteArrayList<Listener> listeners = new CopyOnWriteArrayList<Listener>();
+  private final CopyOnWriteArrayList<Listener> listeners = new CopyOnWriteArrayList<>();
 
   private final AppenderContext appenderContext = LogService.getAppenderContext();
 
-  // This can be set by a loner distributed sytem to disable alerting
+  // This can be set by a loner distributed system to disable alerting
   private volatile boolean alertingDisabled = false;
+
+  private static AlertAppender createAlertAppender() {
+    InternalDistributedSystem
+        .addConnectListener((final InternalDistributedSystem connectedSystem) -> {
+          system.set(connectedSystem);
+          connectedSystem
+              .addDisconnectListener((final InternalDistributedSystem disconnectedSystem) -> {
+                system.compareAndSet(connectedSystem, null);
+              });
+        });
+
+    AlertAppender alertAppender = new AlertAppender();
+    alertAppender.start();
+
+    return alertAppender;
+  }
 
   private AlertAppender() {
     super(APPENDER_NAME, null, PatternLayout.createDefaultLayout());
-    start();
   }
 
   public static AlertAppender getInstance() {
@@ -114,10 +133,9 @@ public final class AlertAppender extends AbstractAppender implements PropertyCha
         logger.debug("Delivering an alert event: {}", event);
       }
 
-      InternalDistributedSystem ds = InternalDistributedSystem.getConnectedInstance();
+      InternalDistributedSystem ds = system.get();
       if (ds == null) {
-        // Use info level to avoid triggering another alert
-        logger.info("Did not append alert event because the distributed system is set to null.");
+        logger.debug("Did not append alert event because the distributed system is set to null.");
         return;
       }
       DistributionManager distMgr = (DistributionManager) ds.getDistributionManager();
@@ -310,7 +328,7 @@ public final class AlertAppender extends AbstractAppender implements PropertyCha
   }
 
   /**
-   * Simple value object which holds an InteralDistributedMember and Level pair.
+   * Simple value object which holds a DistributedMember and Level pair.
    */
   static class Listener {
     private Level level;
