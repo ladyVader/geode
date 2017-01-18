@@ -26,6 +26,7 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.config.LoggerConfig;
 import org.apache.logging.log4j.core.layout.PatternLayout;
+import org.apache.logging.log4j.status.StatusLogger;
 
 import org.apache.geode.distributed.DistributedMember;
 import org.apache.geode.distributed.internal.DistributionManager;
@@ -39,11 +40,11 @@ import org.apache.geode.internal.tcp.ReenteredConnectException;
 /**
  * A Log4j Appender which will notify listeners whenever a message of the requested level is written
  * to the log file.
- * 
  */
 public final class AlertAppender extends AbstractAppender implements PropertyChangeListener {
+  private static final StatusLogger logger = StatusLogger.getLogger();
+
   private static final String APPENDER_NAME = AlertAppender.class.getName();
-  private static final Logger logger = LogService.getLogger();
   private static final AlertAppender instance = new AlertAppender();
 
   /** Is this thread in the process of alerting? */
