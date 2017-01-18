@@ -91,7 +91,8 @@ public class LogWriterAppenders {
   /**
    * Creates the log writer appender for a distributed system based on the system's parsed
    * configuration. The initial banner and messages are also entered into the log by this method.
-   * 
+   *
+   * @param appendToFile true to append or false to rename old log file
    * @param isLoner Whether the distributed system is a loner or not
    * @param isSecurity Whether a log for security related messages has to be created
    * @param config The DistributionConfig for the target distributed system
@@ -102,13 +103,12 @@ public class LogWriterAppenders {
       final boolean isLoner, final boolean isSecurity, final LogConfig config,
       final boolean logConfig) {
 
+    final boolean redirectStdOut = !isLoner;
     final boolean isDistributionConfig = config instanceof DistributionConfig;
     final DistributionConfig dsConfig = isDistributionConfig ? (DistributionConfig) config : null;
     File logFile = config.getLogFile();
     String firstMsg = null;
     boolean firstMsgWarning = false;
-
-    AlertAppender.getInstance().setAlertingDisabled(isLoner);
 
     // security-log-file is specified in DistributionConfig
     if (isSecurity) {
@@ -174,7 +174,7 @@ public class LogWriterAppenders {
       mlw = new SecurityManagerLogWriter(dsConfig.getSecurityLogLevel(), out, config.getName());
       logWriterLoggerName = LogService.SECURITY_LOGGER_NAME;
     } else {
-      mlw = new ManagerLogWriter(config.getLogLevel(), out, config.getName());
+      mlw = new ManagerLogWriter(config.getLogLevel(), out, config.getName(), redirectStdOut);
       logWriterLoggerName = LogService.MAIN_LOGGER_NAME;
     }
 

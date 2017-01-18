@@ -31,20 +31,13 @@ import java.io.PrintStream;
  */
 public final class SecurityManagerLogWriter extends ManagerLogWriter {
 
-  public SecurityManagerLogWriter(int level, PrintStream stream) {
-
-    super(level, stream);
+  public SecurityManagerLogWriter(final int level, final PrintStream stream,
+      final String connectionName) {
+    super(level, stream, connectionName, false);
   }
-
-  public SecurityManagerLogWriter(int level, PrintStream stream, String connectionName) {
-
-    super(level, stream, connectionName);
-  }
-
 
   @Override
   public void setConfig(LogConfig config) {
-
     if (config instanceof DistributionConfig) {
       config = new SecurityLogConfig((DistributionConfig) config);
     }

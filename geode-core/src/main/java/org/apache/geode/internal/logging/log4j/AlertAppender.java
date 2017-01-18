@@ -69,12 +69,12 @@ public final class AlertAppender extends AbstractAppender implements PropertyCha
     return alertAppender;
   }
 
-  private AlertAppender() {
-    super(APPENDER_NAME, null, PatternLayout.createDefaultLayout());
-  }
-
   public static AlertAppender getInstance() {
     return instance;
+  }
+
+  private AlertAppender() {
+    super(APPENDER_NAME, null, PatternLayout.createDefaultLayout());
   }
 
   /**
@@ -92,7 +92,7 @@ public final class AlertAppender extends AbstractAppender implements PropertyCha
     return alertingDisabled;
   }
 
-  public void setAlertingDisabled(final boolean alertingDisabled) {
+  void setAlertingDisabled(final boolean alertingDisabled) {
     this.alertingDisabled = alertingDisabled;
   }
 

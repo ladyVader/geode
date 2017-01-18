@@ -53,4 +53,8 @@ public class AlertService {
   public static void shuttingDown() {
     getAlertService().alertAppender.shuttingDown();
   }
+
+  public static void enableAlerting(final boolean enable) {
+    getAlertService().alertAppender.setAlertingDisabled(!enable);
+  }
 }
