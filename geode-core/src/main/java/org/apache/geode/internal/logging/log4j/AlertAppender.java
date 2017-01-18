@@ -44,7 +44,7 @@ public final class AlertAppender extends AbstractAppender implements PropertyCha
   private static final StatusLogger logger = StatusLogger.getLogger();
 
   private static final String APPENDER_NAME = AlertAppender.class.getName();
-  private static final AlertAppender instance = new AlertAppender();
+  private static final AlertAppender instance = createAlertAppender();
 
   /** Is this thread in the process of alerting? */
   private static final ThreadLocal<Boolean> alerting = new ThreadLocal<Boolean>() {
@@ -55,16 +55,22 @@ public final class AlertAppender extends AbstractAppender implements PropertyCha
   };
 
   // Listeners are ordered with the narrowest levels (e.g. FATAL) at the end
-  private final CopyOnWriteArrayList<AlertSubscriber> listeners = new CopyOnWriteArrayList<AlertSubscriber>();
+  private final CopyOnWriteArrayList<AlertSubscriber> listeners =
+      new CopyOnWriteArrayList<AlertSubscriber>();
 
   private final AppenderContext appenderContext = LogService.getAppenderContext();
 
-  // This can be set by a loner distributed sytem to disable alerting
+  // This can be set by a loner distributed system to disable alerting
   private volatile boolean alertingDisabled = false;
+
+  private static AlertAppender createAlertAppender() {
+    AlertAppender alertAppender = new AlertAppender();
+    alertAppender.start();
+    return alertAppender;
+  }
 
   private AlertAppender() {
     super(APPENDER_NAME, null, PatternLayout.createDefaultLayout());
-    start();
   }
 
   public static AlertAppender getInstance() {
@@ -78,16 +84,16 @@ public final class AlertAppender extends AbstractAppender implements PropertyCha
     return alerting.get();
   }
 
+  public static void setIsAlerting(boolean isAlerting) {
+    alerting.set(isAlerting ? Boolean.TRUE : Boolean.FALSE);
+  }
+
   public boolean isAlertingDisabled() {
     return alertingDisabled;
   }
 
   public void setAlertingDisabled(final boolean alertingDisabled) {
     this.alertingDisabled = alertingDisabled;
-  }
-
-  public static void setIsAlerting(boolean isAlerting) {
-    alerting.set(isAlerting ? Boolean.TRUE : Boolean.FALSE);
   }
 
   /**
@@ -269,7 +275,7 @@ public final class AlertAppender extends AbstractAppender implements PropertyCha
    * Simple value object which holds an InteralDistributedMember and Level pair.
    */
   static class AlertSubscriber {
-    
+
     private final Level level;
     private final DistributedMember member;
 

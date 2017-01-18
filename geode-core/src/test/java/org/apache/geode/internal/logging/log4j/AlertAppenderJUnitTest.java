@@ -93,8 +93,7 @@ public class AlertAppenderJUnitTest {
 
     @SuppressWarnings("unchecked")
     final CopyOnWriteArrayList<AlertSubscriber> listeners =
-        (CopyOnWriteArrayList<AlertSubscriber>) listenersField
-            .get(AlertAppender.getInstance());
+        (CopyOnWriteArrayList<AlertSubscriber>) listenersField.get(AlertAppender.getInstance());
 
     // Verify add
     assertSame(member5, listeners.get(0).getMember());
