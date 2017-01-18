@@ -26,7 +26,7 @@ import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.internal.admin.Alert;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.LogService;
-import org.apache.geode.internal.logging.log4j.AlertAppender;
+import org.apache.geode.internal.logging.log4j.AlertService;
 import org.apache.geode.internal.logging.log4j.LogMarker;
 
 /**
@@ -59,10 +59,10 @@ public final class AlertLevelChangeMessage extends SerialDistributionMessage {
 
   @Override
   public void process(DistributionManager dm) {
-    AlertAppender.getInstance().removeAlertListener(this.getSender());
+    AlertService.removeAlertSubscriber(this.getSender());
 
     if (this.newLevel != Alert.OFF) {
-      AlertAppender.getInstance().addAlertListener(this.getSender(), this.newLevel);
+      AlertService.addAlertSubscriber(getSender(), this.newLevel);
       if (logger.isTraceEnabled(LogMarker.DM)) {
         logger.trace(LogMarker.DM, "Added new AlertListener to application log writer");
       }

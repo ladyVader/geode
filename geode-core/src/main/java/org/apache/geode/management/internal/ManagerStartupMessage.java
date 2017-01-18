@@ -20,15 +20,12 @@ import java.io.IOException;
 
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.PooledDistributionMessage;
-import org.apache.geode.i18n.LogWriterI18n;
 import org.apache.geode.internal.admin.Alert;
-import org.apache.geode.internal.logging.LogService;
-import org.apache.geode.internal.logging.ManagerLogWriter;
-import org.apache.geode.internal.logging.log4j.AlertAppender;
+import org.apache.geode.internal.logging.log4j.AlertService;
 
 public class ManagerStartupMessage extends PooledDistributionMessage {
   // instance variables
-  int alertLevel;
+  private int alertLevel;
 
   public static ManagerStartupMessage create(int level) {
     ManagerStartupMessage m = new ManagerStartupMessage();
@@ -42,9 +39,8 @@ public class ManagerStartupMessage extends PooledDistributionMessage {
 
   @Override
   public void process(DistributionManager dm) {
-
     if (this.alertLevel != Alert.OFF) {
-      AlertAppender.getInstance().addAlertListener(this.getSender(), this.alertLevel);
+      AlertService.addAlertSubscriber(getSender(), this.alertLevel);
     }
   }
 
@@ -68,6 +64,5 @@ public class ManagerStartupMessage extends PooledDistributionMessage {
   public String toString() {
     return "ManagerStartupMessage from " + this.getSender() + " level=" + alertLevel;
   }
-
 
 }

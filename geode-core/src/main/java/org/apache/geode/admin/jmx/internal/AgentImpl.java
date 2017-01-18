@@ -66,7 +66,7 @@ import org.apache.geode.internal.logging.LogConfig;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.logging.LogWriterFactory;
 import org.apache.geode.internal.logging.LoggingThreadGroup;
-import org.apache.geode.internal.logging.log4j.AlertAppender;
+import org.apache.geode.internal.logging.log4j.AlertService;
 import org.apache.geode.internal.logging.log4j.LocalizedMessage;
 import org.apache.geode.internal.logging.log4j.LogMarker;
 import org.apache.geode.internal.logging.log4j.LogWriterAppender;
@@ -277,7 +277,7 @@ public class AgentImpl implements org.apache.geode.admin.jmx.Agent,
     try {
       startHttpAdaptor();
     } catch (StartupException e) {
-      AlertAppender.getInstance().shuttingDown();
+      AlertService.shuttingDown();
       LogWriterAppenders.stop(LogWriterAppenders.Identifier.MAIN);
       LogWriterAppenders.destroy(LogWriterAppenders.Identifier.MAIN);
       throw e;
@@ -287,7 +287,7 @@ public class AgentImpl implements org.apache.geode.admin.jmx.Agent,
       startRMIConnectorServer();
     } catch (StartupException e) {
       stopHttpAdaptor();
-      AlertAppender.getInstance().shuttingDown();
+      AlertService.shuttingDown();
       LogWriterAppenders.stop(LogWriterAppenders.Identifier.MAIN);
       LogWriterAppenders.destroy(LogWriterAppenders.Identifier.MAIN);
       throw e;
@@ -298,7 +298,7 @@ public class AgentImpl implements org.apache.geode.admin.jmx.Agent,
     } catch (StartupException e) {
       stopRMIConnectorServer();
       stopHttpAdaptor();
-      AlertAppender.getInstance().shuttingDown();
+      AlertService.shuttingDown();
       LogWriterAppenders.stop(LogWriterAppenders.Identifier.MAIN);
       LogWriterAppenders.destroy(LogWriterAppenders.Identifier.MAIN);
       throw e;
@@ -339,7 +339,7 @@ public class AgentImpl implements org.apache.geode.admin.jmx.Agent,
   public void stop() {
     try {
       logger.info(LocalizedMessage.create(LocalizedStrings.AgentImpl_STOPPING_JMX_AGENT));
-      AlertAppender.getInstance().shuttingDown();
+      AlertService.shuttingDown();
       LogWriterAppenders.stop(LogWriterAppenders.Identifier.MAIN);
 
       // stop the GemFire Distributed System

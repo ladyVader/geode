@@ -31,7 +31,7 @@ import org.apache.geode.internal.cache.InitialImageOperation;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.logging.LoggingThreadGroup;
-import org.apache.geode.internal.logging.log4j.AlertAppender;
+import org.apache.geode.internal.logging.log4j.AlertService;
 import org.apache.geode.internal.logging.log4j.LocalizedMessage;
 import org.apache.geode.internal.logging.log4j.LogMarker;
 import org.apache.geode.internal.net.SocketCreator;
@@ -3225,7 +3225,7 @@ public class DistributionManager implements DM {
     boolean crashed = p_crashed;
     String reason = p_reason;
 
-    AlertAppender.getInstance().removeAlertListener(theId);
+    AlertService.removeAlertSubscriber(theId);
 
     // this fixes a race introduced in 5.0.1 by the fact that an explicit
     // shutdown will cause a member to no longer be in our DM membership

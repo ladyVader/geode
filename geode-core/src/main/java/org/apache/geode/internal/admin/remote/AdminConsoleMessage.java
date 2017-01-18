@@ -12,31 +12,24 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-
-
 package org.apache.geode.internal.admin.remote;
 
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 
-import org.apache.logging.log4j.Logger;
-
 import org.apache.geode.distributed.internal.DistributionManager;
 import org.apache.geode.distributed.internal.PooledDistributionMessage;
 import org.apache.geode.internal.admin.Alert;
-import org.apache.geode.internal.logging.LogService;
-import org.apache.geode.internal.logging.ManagerLogWriter;
-import org.apache.geode.internal.logging.log4j.AlertAppender;
-import org.apache.geode.internal.logging.log4j.LogWriterLogger;
+import org.apache.geode.internal.logging.log4j.AlertService;
 
 /**
  * A message that is sent to a particular distribution manager to let it know that the sender is an
- * administation console that just connected.
+ * administration console that just connected.
  */
 public final class AdminConsoleMessage extends PooledDistributionMessage {
   // instance variables
-  int level;
+  private int level;
 
   public static AdminConsoleMessage create(int level) {
     AdminConsoleMessage m = new AdminConsoleMessage();
@@ -51,9 +44,9 @@ public final class AdminConsoleMessage extends PooledDistributionMessage {
   @Override
   public void process(DistributionManager dm) {
     if (this.level != Alert.OFF) {
-      AlertAppender.getInstance().addAlertListener(this.getSender(), this.level);
+      AlertService.addAlertSubscriber(getSender(), this.level);
     }
-    dm.addAdminConsole(this.getSender());
+    dm.addAdminConsole(getSender());
   }
 
   public int getDSFID() {

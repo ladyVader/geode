@@ -89,7 +89,7 @@ import org.apache.geode.internal.logging.InternalLogWriter;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.logging.LogWriterFactory;
 import org.apache.geode.internal.logging.LoggingThreadGroup;
-import org.apache.geode.internal.logging.log4j.AlertAppender;
+import org.apache.geode.internal.logging.log4j.AlertService;
 import org.apache.geode.internal.logging.log4j.LocalizedMessage;
 import org.apache.geode.internal.logging.log4j.LogWriterAppender;
 import org.apache.geode.internal.logging.log4j.LogWriterAppenders;
@@ -1366,7 +1366,7 @@ public class InternalDistributedSystem extends DistributedSystem
           }
         }
 
-        AlertAppender.getInstance().shuttingDown();
+        AlertService.shuttingDown();
 
       } finally { // be ABSOLUTELY CERTAIN that dm closed
         try {
@@ -2951,7 +2951,7 @@ public class InternalDistributedSystem extends DistributedSystem
 
 
   public boolean hasAlertListenerFor(DistributedMember member, int severity) {
-    return AlertAppender.getInstance().hasAlertListener(member, severity);
+    return AlertService.hasAlertSubscriber(member, severity);
   }
 
   /**

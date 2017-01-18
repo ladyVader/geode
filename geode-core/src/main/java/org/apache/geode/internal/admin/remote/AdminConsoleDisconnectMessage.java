@@ -12,8 +12,6 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-
-
 package org.apache.geode.internal.admin.remote;
 
 import java.io.DataInput;
@@ -29,12 +27,12 @@ import org.apache.geode.distributed.internal.PooledDistributionMessage;
 import org.apache.geode.internal.statistics.GemFireStatSampler;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.LogService;
-import org.apache.geode.internal.logging.log4j.AlertAppender;
+import org.apache.geode.internal.logging.log4j.AlertService;
 import org.apache.geode.internal.logging.log4j.LocalizedMessage;
 
 /**
  * A message that is sent to a particular distribution manager to let it know that the sender is an
- * administation console that just disconnected.
+ * administration console that just disconnected.
  */
 public final class AdminConsoleDisconnectMessage extends PooledDistributionMessage {
   private static final Logger logger = LogService.getLogger();
@@ -79,9 +77,8 @@ public final class AdminConsoleDisconnectMessage extends PooledDistributionMessa
   @Override
   public void process(DistributionManager dm) {
     InternalDistributedSystem sys = dm.getSystem();
-    // DistributionConfig config = sys.getConfig();
     if (alertListenerExpected) {
-      if (!AlertAppender.getInstance().removeAlertListener(this.getSender())
+      if (!AlertService.removeAlertSubscriber(getSender())
           && !this.ignoreAlertListenerRemovalFailure) {
         logger.warn(LocalizedMessage.create(
             LocalizedStrings.ManagerLogWriter_UNABLE_TO_REMOVE_CONSOLE_WITH_ID_0_FROM_ALERT_LISTENERS,

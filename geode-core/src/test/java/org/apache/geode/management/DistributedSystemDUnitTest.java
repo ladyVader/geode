@@ -19,8 +19,7 @@ import org.junit.Test;
 
 import static org.junit.Assert.*;
 
-import org.apache.geode.test.dunit.cache.internal.JUnit4CacheTestCase;
-import org.apache.geode.test.dunit.internal.JUnit4DistributedTestCase;
+import org.apache.geode.internal.logging.log4j.AlertService;
 import org.apache.geode.test.junit.categories.DistributedTest;
 
 import java.util.ArrayList;
@@ -47,7 +46,6 @@ import org.apache.geode.distributed.internal.InternalDistributedSystem;
 import org.apache.geode.internal.admin.Alert;
 import org.apache.geode.internal.cache.GemFireCacheImpl;
 import org.apache.geode.internal.logging.LogService;
-import org.apache.geode.internal.logging.log4j.AlertAppender;
 import org.apache.geode.management.internal.AlertDetails;
 import org.apache.geode.management.internal.MBeanJMXAdapter;
 import org.apache.geode.management.internal.ManagementConstants;
@@ -215,7 +213,7 @@ public class DistributedSystemDUnitTest extends ManagementTestBase {
 
             public boolean done() {
 
-              if (AlertAppender.getInstance().hasAlertListener(member, alertLevel)) {
+              if (AlertService.hasAlertSubscriber(member, alertLevel)) {
                 return true;
               }
               return false;

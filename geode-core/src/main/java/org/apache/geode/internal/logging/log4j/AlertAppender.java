@@ -20,7 +20,6 @@ import java.util.Date;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
@@ -56,7 +55,7 @@ public final class AlertAppender extends AbstractAppender implements PropertyCha
   };
 
   // Listeners are ordered with the narrowest levels (e.g. FATAL) at the end
-  private final CopyOnWriteArrayList<Listener> listeners = new CopyOnWriteArrayList<Listener>();
+  private final CopyOnWriteArrayList<AlertSubscriber> listeners = new CopyOnWriteArrayList<AlertSubscriber>();
 
   private final AppenderContext appenderContext = LogService.getAppenderContext();
 
@@ -123,14 +122,14 @@ public final class AlertAppender extends AbstractAppender implements PropertyCha
       }
       DistributionManager distMgr = (DistributionManager) ds.getDistributionManager();
 
-      final int intLevel = logLevelToAlertLevel(event.getLevel().intLevel());
+      final int intLevel = AlertLevel.logLevelToAlertLevel(event.getLevel().intLevel());
       final Date date = new Date(event.getTimeMillis());
       final String threadName = event.getThreadName();
       final String logMessage = event.getMessage().getFormattedMessage();
       final String stackTrace = ThreadUtils.stackTraceToString(event.getThrown(), true);
       final String connectionName = ds.getConfig().getName();
 
-      for (Listener listener : this.listeners) {
+      for (AlertSubscriber listener : this.listeners) {
         if (event.getLevel().intLevel() > listener.getLevel().intLevel()) {
           break;
         }
@@ -165,14 +164,28 @@ public final class AlertAppender extends AbstractAppender implements PropertyCha
     }
   }
 
-  public synchronized void addAlertListener(final DistributedMember member, final int alertLevel) {
-    final Level level = LogService.toLevel(alertLevelToLogLevel(alertLevel));
+  @Override
+  public synchronized void propertyChange(final PropertyChangeEvent evt) {
+    if (logger.isDebugEnabled()) {
+      logger.debug("Responding to a property change event. Property name is {}.",
+          evt.getPropertyName());
+    }
+    if (evt.getPropertyName().equals(LoggerContext.PROPERTY_CONFIG)) {
+      LoggerConfig loggerConfig = this.appenderContext.getLoggerConfig();
+      if (!loggerConfig.getAppenders().containsKey(APPENDER_NAME)) {
+        loggerConfig.addAppender(this, this.listeners.get(0).getLevel(), null);
+      }
+    }
+  }
+
+  synchronized void addAlertSubscriber(final DistributedMember member, final int alertLevel) {
+    final Level level = LogService.toLevel(AlertLevel.alertLevelToLogLevel(alertLevel));
 
     if (this.listeners.size() == 0) {
       this.appenderContext.getLoggerContext().addPropertyChangeListener(this);
     }
 
-    addListenerToSortedList(new Listener(level, member));
+    addListenerToSortedList(new AlertSubscriber(level, member));
 
     LoggerConfig loggerConfig = this.appenderContext.getLoggerConfig();
     loggerConfig.addAppender(this, this.listeners.get(0).getLevel(), null);
@@ -181,8 +194,8 @@ public final class AlertAppender extends AbstractAppender implements PropertyCha
     }
   }
 
-  public synchronized boolean removeAlertListener(final DistributedMember member) {
-    final boolean memberWasFound = this.listeners.remove(new Listener(null, member));
+  synchronized boolean removeAlertSubscriber(final DistributedMember member) {
+    final boolean memberWasFound = this.listeners.remove(new AlertSubscriber(null, member));
 
     if (memberWasFound) {
       if (this.listeners.size() == 0) {
@@ -201,11 +214,10 @@ public final class AlertAppender extends AbstractAppender implements PropertyCha
     return memberWasFound;
   }
 
-  public synchronized boolean hasAlertListener(final DistributedMember member,
-      final int alertLevel) {
-    final Level level = LogService.toLevel(alertLevelToLogLevel(alertLevel));
+  synchronized boolean hasAlertSubscriber(final DistributedMember member, final int alertLevel) {
+    final Level level = LogService.toLevel(AlertLevel.alertLevelToLogLevel(alertLevel));
 
-    for (Listener listener : this.listeners) {
+    for (AlertSubscriber listener : this.listeners) {
       if (listener.getMember().equals(member) && listener.getLevel().equals(level)) {
         return true;
       }
@@ -215,7 +227,7 @@ public final class AlertAppender extends AbstractAppender implements PropertyCha
     // listener with
     // this level (see AlertLevelChangeMessage.process()).
     if (alertLevel == Alert.OFF) {
-      for (Listener listener : this.listeners) {
+      for (AlertSubscriber listener : this.listeners) {
         if (listener.getMember().equals(member)) {
           return false;
         }
@@ -226,27 +238,19 @@ public final class AlertAppender extends AbstractAppender implements PropertyCha
     return false;
   }
 
-  @Override
-  public synchronized void propertyChange(final PropertyChangeEvent evt) {
-    if (logger.isDebugEnabled()) {
-      logger.debug("Responding to a property change event. Property name is {}.",
-          evt.getPropertyName());
-    }
-    if (evt.getPropertyName().equals(LoggerContext.PROPERTY_CONFIG)) {
-      LoggerConfig loggerConfig = this.appenderContext.getLoggerConfig();
-      if (!loggerConfig.getAppenders().containsKey(APPENDER_NAME)) {
-        loggerConfig.addAppender(this, this.listeners.get(0).getLevel(), null);
-      }
-    }
+  synchronized void shuttingDown() {
+    this.listeners.clear();
+    this.appenderContext.getLoggerContext().removePropertyChangeListener(this);
+    this.appenderContext.getLoggerConfig().removeAppender(APPENDER_NAME);
   }
 
   /**
    * Will add (or replace) a listener to the list of sorted listeners such that listeners with a
    * narrower level (e.g. FATAL) will be at the end of the list.
-   * 
+   *
    * @param listener The listener to add to the list.
    */
-  private void addListenerToSortedList(final Listener listener) {
+  private void addListenerToSortedList(final AlertSubscriber listener) {
     if (this.listeners.contains(listener)) {
       this.listeners.remove(listener);
     }
@@ -262,60 +266,17 @@ public final class AlertAppender extends AbstractAppender implements PropertyCha
   }
 
   /**
-   * Converts an int alert level to an int log level.
-   * 
-   * @param alertLevel The int value for the alert level
-   * @return The int value for the matching log level
-   * @throws java.lang.IllegalArgumentException If there is no matching log level
-   */
-  public static int alertLevelToLogLevel(final int alertLevel) {
-    switch (alertLevel) {
-      case Alert.SEVERE:
-        return Level.FATAL.intLevel();
-      case Alert.ERROR:
-        return Level.ERROR.intLevel();
-      case Alert.WARNING:
-        return Level.WARN.intLevel();
-      case Alert.OFF:
-        return Level.OFF.intLevel();
-    }
-
-    throw new IllegalArgumentException("Unknown Alert level [" + alertLevel + "].");
-  }
-
-  /**
-   * Converts an int log level to an int alert level.
-   * 
-   * @param logLevel The int value for the log level
-   * @return The int value for the matching alert level
-   * @throws java.lang.IllegalArgumentException If there is no matching log level
-   */
-  public static int logLevelToAlertLevel(final int logLevel) {
-    if (logLevel == Level.FATAL.intLevel()) {
-      return Alert.SEVERE;
-    } else if (logLevel == Level.ERROR.intLevel()) {
-      return Alert.ERROR;
-    } else if (logLevel == Level.WARN.intLevel()) {
-      return Alert.WARNING;
-    } else if (logLevel == Level.OFF.intLevel()) {
-      return Alert.OFF;
-    }
-
-    throw new IllegalArgumentException("Unknown Log level [" + logLevel + "].");
-  }
-
-  public synchronized void shuttingDown() {
-    this.listeners.clear();
-    this.appenderContext.getLoggerContext().removePropertyChangeListener(this);
-    this.appenderContext.getLoggerConfig().removeAppender(APPENDER_NAME);
-  }
-
-  /**
    * Simple value object which holds an InteralDistributedMember and Level pair.
    */
-  static class Listener {
-    private Level level;
-    private DistributedMember member;
+  static class AlertSubscriber {
+    
+    private final Level level;
+    private final DistributedMember member;
+
+    AlertSubscriber(final Level level, final DistributedMember member) {
+      this.level = level;
+      this.member = member;
+    }
 
     public Level getLevel() {
       return this.level;
@@ -323,11 +284,6 @@ public final class AlertAppender extends AbstractAppender implements PropertyCha
 
     public DistributedMember getMember() {
       return this.member;
-    }
-
-    Listener(final Level level, final DistributedMember member) {
-      this.level = level;
-      this.member = member;
     }
 
     /**
@@ -343,7 +299,7 @@ public final class AlertAppender extends AbstractAppender implements PropertyCha
      */
     @Override
     public boolean equals(Object other) {
-      return (this.member.equals(((Listener) other).member)) ? true : false;
+      return (this.member.equals(((AlertSubscriber) other).member)) ? true : false;
     }
 
     @Override

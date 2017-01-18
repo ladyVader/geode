@@ -35,6 +35,7 @@ import org.apache.geode.distributed.DurableClientAttributes;
 import org.apache.geode.distributed.Role;
 import org.apache.geode.internal.admin.Alert;
 import org.apache.geode.internal.logging.LogService;
+import org.apache.geode.internal.logging.log4j.AlertAppender.AlertSubscriber;
 import org.apache.geode.test.junit.categories.UnitTest;
 
 /**
@@ -56,7 +57,7 @@ public class AlertAppenderJUnitTest {
     LogService.setBaseLogLevel(this.previousLogLevel);
     if (!this.members.isEmpty()) {
       for (DistributedMember member : this.members) {
-        AlertAppender.getInstance().removeAlertListener(member);
+        AlertAppender.getInstance().removeAlertSubscriber(member);
       }
       this.members.clear();
     }
@@ -80,19 +81,19 @@ public class AlertAppenderJUnitTest {
 
     LogService.setBaseLogLevel(Level.WARN);
 
-    AlertAppender.getInstance().addAlertListener(member1, Alert.SEVERE);
-    AlertAppender.getInstance().addAlertListener(member2, Alert.WARNING);
-    AlertAppender.getInstance().addAlertListener(member3, Alert.ERROR);
-    AlertAppender.getInstance().addAlertListener(member4, Alert.ERROR);
-    AlertAppender.getInstance().addAlertListener(member5, Alert.WARNING);
-    AlertAppender.getInstance().addAlertListener(member6, Alert.SEVERE);
+    AlertAppender.getInstance().addAlertSubscriber(member1, Alert.SEVERE);
+    AlertAppender.getInstance().addAlertSubscriber(member2, Alert.WARNING);
+    AlertAppender.getInstance().addAlertSubscriber(member3, Alert.ERROR);
+    AlertAppender.getInstance().addAlertSubscriber(member4, Alert.ERROR);
+    AlertAppender.getInstance().addAlertSubscriber(member5, Alert.WARNING);
+    AlertAppender.getInstance().addAlertSubscriber(member6, Alert.SEVERE);
 
     Field listenersField = AlertAppender.getInstance().getClass().getDeclaredField("listeners");
     listenersField.setAccessible(true);
 
     @SuppressWarnings("unchecked")
-    final CopyOnWriteArrayList<AlertAppender.Listener> listeners =
-        (CopyOnWriteArrayList<AlertAppender.Listener>) listenersField
+    final CopyOnWriteArrayList<AlertSubscriber> listeners =
+        (CopyOnWriteArrayList<AlertSubscriber>) listenersField
             .get(AlertAppender.getInstance());
 
     // Verify add
@@ -105,7 +106,7 @@ public class AlertAppenderJUnitTest {
     assertSame(6, listeners.size());
 
     // Verify replace with same level
-    AlertAppender.getInstance().addAlertListener(member5, Alert.WARNING);
+    AlertAppender.getInstance().addAlertSubscriber(member5, Alert.WARNING);
     assertSame(member5, listeners.get(0).getMember());
     assertSame(member2, listeners.get(1).getMember());
     assertSame(member4, listeners.get(2).getMember());
@@ -115,7 +116,7 @@ public class AlertAppenderJUnitTest {
     assertSame(6, listeners.size());
 
     // Verify replace with difference level
-    AlertAppender.getInstance().addAlertListener(member5, Alert.SEVERE);
+    AlertAppender.getInstance().addAlertSubscriber(member5, Alert.SEVERE);
     assertSame(member2, listeners.get(0).getMember());
     assertSame(member4, listeners.get(1).getMember());
     assertSame(member3, listeners.get(2).getMember());
@@ -125,7 +126,7 @@ public class AlertAppenderJUnitTest {
     assertSame(6, listeners.size());
 
     // Verify remove
-    assertTrue(AlertAppender.getInstance().removeAlertListener(member3));
+    assertTrue(AlertAppender.getInstance().removeAlertSubscriber(member3));
     assertSame(member2, listeners.get(0).getMember());
     assertSame(member4, listeners.get(1).getMember());
     assertSame(member5, listeners.get(2).getMember());
@@ -133,12 +134,12 @@ public class AlertAppenderJUnitTest {
     assertSame(member1, listeners.get(4).getMember());
     assertSame(5, listeners.size());
 
-    assertTrue(AlertAppender.getInstance().removeAlertListener(member1));
-    assertTrue(AlertAppender.getInstance().removeAlertListener(member2));
-    assertFalse(AlertAppender.getInstance().removeAlertListener(member3));
-    assertTrue(AlertAppender.getInstance().removeAlertListener(member4));
-    assertTrue(AlertAppender.getInstance().removeAlertListener(member5));
-    assertTrue(AlertAppender.getInstance().removeAlertListener(member6));
+    assertTrue(AlertAppender.getInstance().removeAlertSubscriber(member1));
+    assertTrue(AlertAppender.getInstance().removeAlertSubscriber(member2));
+    assertFalse(AlertAppender.getInstance().removeAlertSubscriber(member3));
+    assertTrue(AlertAppender.getInstance().removeAlertSubscriber(member4));
+    assertTrue(AlertAppender.getInstance().removeAlertSubscriber(member5));
+    assertTrue(AlertAppender.getInstance().removeAlertSubscriber(member6));
   }
 
   /**
@@ -159,14 +160,14 @@ public class AlertAppenderJUnitTest {
 
     // Add a listener and verify that the appender was added to log4j
     DistributedMember member1 = createTestDistributedMember("Member1");
-    AlertAppender.getInstance().addAlertListener(member1, Alert.SEVERE);
+    AlertAppender.getInstance().addAlertSubscriber(member1, Alert.SEVERE);
     assertEquals(loggerConfig.getAppenders().values().toString(), startingSize + 1,
         loggerConfig.getAppenders().size());
     assertTrue(loggerConfig.getAppenders().containsKey(appenderName));
 
     // Add another listener and verify that there's still only 1 alert appender
     DistributedMember member2 = createTestDistributedMember("Member1");
-    AlertAppender.getInstance().addAlertListener(member2, Alert.SEVERE);
+    AlertAppender.getInstance().addAlertSubscriber(member2, Alert.SEVERE);
     assertEquals(startingSize + 1, loggerConfig.getAppenders().size());
 
     // Modify the config and verify that the appender still exists
@@ -180,8 +181,8 @@ public class AlertAppenderJUnitTest {
     assertTrue(loggerConfig.getAppenders().containsKey(appenderName));
 
     // Remove the listeners and verify that the appender was removed from log4j
-    assertTrue(AlertAppender.getInstance().removeAlertListener(member2));
-    assertFalse(AlertAppender.getInstance().removeAlertListener(member1));
+    assertTrue(AlertAppender.getInstance().removeAlertSubscriber(member2));
+    assertFalse(AlertAppender.getInstance().removeAlertSubscriber(member1));
     assertEquals(startingSize, loggerConfig.getAppenders().size());
     assertFalse(loggerConfig.getAppenders().containsKey(appenderName));
   }
