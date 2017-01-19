@@ -71,8 +71,7 @@ import java.util.regex.Pattern;
 @Category(DistributedTest.class)
 public class DeployCommandsDUnitTest extends CliCommandTestBase {
 
-  private final Pattern pattern =
-      Pattern.compile("^" + JarDeployer.JAR_PREFIX + "DeployCommandsDUnit.*#\\d++$");
+  private final Pattern pattern = Pattern.compile("^DeployCommandsDUnit.*#\\d++$");
   private File newDeployableJarFile;
   private transient ClassBuilder classBuilder;
   private transient CommandProcessor commandProcessor;
