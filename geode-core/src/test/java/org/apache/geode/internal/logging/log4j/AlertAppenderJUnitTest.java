@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import org.apache.geode.management.internal.alerting.AlertSubscriber;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.config.LoggerConfig;
 import org.junit.After;
@@ -43,12 +44,13 @@ import org.apache.geode.test.junit.categories.UnitTest;
 @Category(UnitTest.class)
 public class AlertAppenderJUnitTest {
 
-  private final List<DistributedMember> members = new ArrayList<DistributedMember>();
+  private List<DistributedMember> members;
   private Level previousLogLevel;
 
   @Before
   public void setUp() {
     this.previousLogLevel = LogService.getBaseLogLevel();
+    this.members = new ArrayList<>();
   }
 
   @After
@@ -60,10 +62,6 @@ public class AlertAppenderJUnitTest {
       }
       this.members.clear();
     }
-  }
-
-  private DistributedMember createTestDistributedMember(String name) {
-    return new TestDistributedMember(name);
   }
 
   /**
@@ -91,8 +89,8 @@ public class AlertAppenderJUnitTest {
     listenersField.setAccessible(true);
 
     @SuppressWarnings("unchecked")
-    final CopyOnWriteArrayList<AlertAppender.Listener> listeners =
-        (CopyOnWriteArrayList<AlertAppender.Listener>) listenersField
+    final CopyOnWriteArrayList<AlertSubscriber> listeners =
+        (CopyOnWriteArrayList<AlertSubscriber>) listenersField
             .get(AlertAppender.getInstance());
 
     // Verify add
@@ -184,6 +182,10 @@ public class AlertAppenderJUnitTest {
     assertFalse(AlertAppender.getInstance().removeAlertListener(member1));
     assertEquals(startingSize, loggerConfig.getAppenders().size());
     assertFalse(loggerConfig.getAppenders().containsKey(appenderName));
+  }
+
+  private DistributedMember createTestDistributedMember(final String name) {
+    return new TestDistributedMember(name);
   }
 
   private static class TestDistributedMember implements DistributedMember {

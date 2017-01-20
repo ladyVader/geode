@@ -40,6 +40,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.geode.cache.CacheXmlException;
+import org.apache.geode.management.internal.alerting.AlertService;
 import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.CancelCriterion;
@@ -570,50 +571,9 @@ public class InternalDistributedSystem extends DistributedSystem
     try {
       SocketCreatorFactory.setDistributionConfig(config);
 
-      // LOG: create LogWriterAppender(s) if log-file or security-log-file is specified
-      final boolean hasLogFile =
-          this.config.getLogFile() != null && !this.config.getLogFile().equals(new File(""));
-      final boolean hasSecurityLogFile = this.config.getSecurityLogFile() != null
-          && !this.config.getSecurityLogFile().equals(new File(""));
-      LogService.configureLoggers(hasLogFile, hasSecurityLogFile);
-      if (hasLogFile || hasSecurityLogFile) {
+      initializeAlerting();
 
-        // main log file
-        if (hasLogFile) {
-          // if log-file then create logWriterAppender
-          this.logWriterAppender = LogWriterAppenders.getOrCreateAppender(
-              LogWriterAppenders.Identifier.MAIN, this.isLoner, this.config, true);
-        }
-
-        // security log file
-        if (hasSecurityLogFile) {
-          // if security-log-file then create securityLogWriterAppender
-          this.securityLogWriterAppender = LogWriterAppenders.getOrCreateAppender(
-              LogWriterAppenders.Identifier.SECURITY, this.isLoner, this.config, false);
-        } else {
-          // let security route to regular log-file or stdout
-        }
-      }
-
-      // LOG: create LogWriterLogger(s) for backwards compatibility of getLogWriter and
-      // getSecurityLogWriter
-      if (this.logWriter == null) {
-        this.logWriter =
-            LogWriterFactory.createLogWriterLogger(this.isLoner, false, this.config, true);
-        this.logWriter.fine("LogWriter is created.");
-      }
-
-      // logWriter.info("Created log writer for IDS@"+System.identityHashCode(this));
-
-      if (this.securityLogWriter == null) {
-        // LOG: whole new LogWriterLogger instance for security
-        this.securityLogWriter =
-            LogWriterFactory.createLogWriterLogger(this.isLoner, true, this.config, false);
-        this.securityLogWriter.fine("SecurityLogWriter is created.");
-      }
-
-      Services.setLogWriter(this.logWriter);
-      Services.setSecurityLogWriter(this.securityLogWriter);
+      initializeLogging();
 
       this.clock = new DSClock(this.isLoner);
 
@@ -736,12 +696,7 @@ public class InternalDistributedSystem extends DistributedSystem
         this.sampler.start();
       }
 
-      if (this.logWriterAppender != null) {
-        LogWriterAppenders.startupComplete(LogWriterAppenders.Identifier.MAIN);
-      }
-      if (this.securityLogWriterAppender != null) {
-        LogWriterAppenders.startupComplete(LogWriterAppenders.Identifier.SECURITY);
-      }
+      postInitializeLogging();
 
       // this.logger.info("ds created", new RuntimeException("DEBUG: STACK"));
 
@@ -756,6 +711,75 @@ public class InternalDistributedSystem extends DistributedSystem
     resourceListeners = new CopyOnWriteArrayList<ResourceEventsListener>();
     this.reconnected = this.attemptingToReconnect;
     this.attemptingToReconnect = false;
+  }
+
+  /**
+   * Extract this to a Service Initializer object that is passed into IDS
+   */
+  private void initializeAlerting() {
+    AlertService.install(new DistributedAlertService(this));
+  }
+
+  /**
+   * Extract this to a Service Initializer object that is passed into IDS
+   */
+  private void initializeLogging() {
+    // LOG: create LogWriterAppender(s) if log-file or security-log-file is specified
+    final boolean hasLogFile =
+        this.config.getLogFile() != null && !this.config.getLogFile().equals(new File(""));
+    final boolean hasSecurityLogFile = this.config.getSecurityLogFile() != null
+        && !this.config.getSecurityLogFile().equals(new File(""));
+    LogService.configureLoggers(hasLogFile, hasSecurityLogFile);
+    if (hasLogFile || hasSecurityLogFile) {
+
+      // main log file
+      if (hasLogFile) {
+        // if log-file then create logWriterAppender
+        this.logWriterAppender = LogWriterAppenders.getOrCreateAppender(
+            LogWriterAppenders.Identifier.MAIN, this.isLoner, this.config, true);
+      }
+
+      // security log file
+      if (hasSecurityLogFile) {
+        // if security-log-file then create securityLogWriterAppender
+        this.securityLogWriterAppender = LogWriterAppenders.getOrCreateAppender(
+            LogWriterAppenders.Identifier.SECURITY, this.isLoner, this.config, false);
+      } else {
+        // let security route to regular log-file or stdout
+      }
+    }
+
+    // LOG: create LogWriterLogger(s) for backwards compatibility of getLogWriter and
+    // getSecurityLogWriter
+    if (this.logWriter == null) {
+      this.logWriter =
+          LogWriterFactory.createLogWriterLogger(this.isLoner, false, this.config, true);
+      this.logWriter.fine("LogWriter is created.");
+    }
+
+    // logWriter.info("Created log writer for IDS@"+System.identityHashCode(this));
+
+    if (this.securityLogWriter == null) {
+      // LOG: whole new LogWriterLogger instance for security
+      this.securityLogWriter =
+          LogWriterFactory.createLogWriterLogger(this.isLoner, true, this.config, false);
+      this.securityLogWriter.fine("SecurityLogWriter is created.");
+    }
+
+    Services.setLogWriter(this.logWriter);
+    Services.setSecurityLogWriter(this.securityLogWriter);
+  }
+
+  /**
+   * TODO: move this to lifecycle callbacks in Service Initializers
+   */
+  private void postInitializeLogging() {
+    if (this.logWriterAppender != null) {
+      LogWriterAppenders.startupComplete(LogWriterAppenders.Identifier.MAIN);
+    }
+    if (this.securityLogWriterAppender != null) {
+      LogWriterAppenders.startupComplete(LogWriterAppenders.Identifier.SECURITY);
+    }
   }
 
   /**

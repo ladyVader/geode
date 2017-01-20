@@ -108,8 +108,6 @@ public class LogWriterAppenders {
     String firstMsg = null;
     boolean firstMsgWarning = false;
 
-    AlertAppender.getInstance().setAlertingDisabled(isLoner);
-
     // security-log-file is specified in DistributionConfig
     if (isSecurity) {
       if (isDistributionConfig) {
@@ -171,10 +169,11 @@ public class LogWriterAppenders {
     ManagerLogWriter mlw = null;
     String logWriterLoggerName = null;
     if (isSecurity) {
-      mlw = new SecurityManagerLogWriter(dsConfig.getSecurityLogLevel(), out, config.getName());
+      // use false for redirectStdOut fixes bug in which some dunits redirected stdout to security
+      mlw = new SecurityManagerLogWriter(dsConfig.getSecurityLogLevel(), out, config.getName(), false);
       logWriterLoggerName = LogService.SECURITY_LOGGER_NAME;
     } else {
-      mlw = new ManagerLogWriter(config.getLogLevel(), out, config.getName());
+      mlw = new ManagerLogWriter(config.getLogLevel(), out, config.getName(), isLoner);
       logWriterLoggerName = LogService.MAIN_LOGGER_NAME;
     }
 
@@ -249,7 +248,6 @@ public class LogWriterAppenders {
   }
 
   public synchronized static void destroy(final Identifier id) {
-    // TODO:LOG:KIRK: new Exception("KIRK destroy called for " + id).printStackTrace();
     LogWriterAppender appender = appenders.get(id);
     if (appender == null) {
       return;

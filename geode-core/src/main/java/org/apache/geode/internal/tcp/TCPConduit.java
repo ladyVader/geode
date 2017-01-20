@@ -36,6 +36,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import javax.net.ssl.SSLException;
 
+import org.apache.geode.distributed.internal.DistributedAlertService;
 import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.CancelCriterion;
@@ -54,7 +55,6 @@ import org.apache.geode.distributed.internal.membership.MembershipManager;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.logging.LoggingThreadGroup;
-import org.apache.geode.internal.logging.log4j.AlertAppender;
 import org.apache.geode.internal.logging.log4j.LocalizedMessage;
 import org.apache.geode.internal.logging.log4j.LogMarker;
 import org.apache.geode.internal.net.SocketCreator;
@@ -1054,7 +1054,7 @@ public class TCPConduit implements Runnable {
         } catch (IOException e) {
           problem = e;
           // bug #43962 don't keep trying to connect to an alert listener
-          if (AlertAppender.isThreadAlerting()) {
+          if (DistributedAlertService.isThreadAlerting()) {
             if (logger.isDebugEnabled()) {
               logger.debug("Giving up connecting to alert listener {}", memberAddress);
             }

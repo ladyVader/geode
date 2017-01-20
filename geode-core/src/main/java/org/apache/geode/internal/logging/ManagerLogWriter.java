@@ -46,6 +46,9 @@ public class ManagerLogWriter extends LocalLogWriter {
 
   private final RollingFileHandler rollingFileHandler;
 
+  // Don't redirect sysouts/syserrs to client log file. See #49492.
+  private final boolean redirectStdOut;
+
   private LogConfig cfg = null;
 
   private LocalLogWriter mainLogger = this;
@@ -67,16 +70,6 @@ public class ManagerLogWriter extends LocalLogWriter {
 
   /**
    * Creates a writer that logs to <code>System.out</code>.
-   * 
-   * @param level only messages greater than or equal to this value will be logged.
-   * @throws IllegalArgumentException if level is not in legal range
-   */
-  public ManagerLogWriter(int level, PrintStream out) {
-    this(level, out, null);
-  }
-
-  /**
-   * Creates a writer that logs to <code>System.out</code>.
    *
    * @param level only messages greater than or equal to this value will be logged.
    * @param connectionName Name of the connection associated with this logger
@@ -85,10 +78,11 @@ public class ManagerLogWriter extends LocalLogWriter {
    *
    * @since GemFire 3.5
    */
-  public ManagerLogWriter(int level, PrintStream out, String connectionName) {
+  public ManagerLogWriter(int level, PrintStream out, String connectionName, boolean redirectStdOut) {
     super(level, out, connectionName);
     this.fileSizeLimitInKB = Boolean.getBoolean(TEST_FILE_SIZE_LIMIT_IN_KB_PROPERTY);
     this.rollingFileHandler = new MainWithChildrenRollingFileHandler();
+    this.redirectStdOut = redirectStdOut;
   }
 
   /**
@@ -244,8 +238,7 @@ public class ManagerLogWriter extends LocalLogWriter {
               File tmpLogDir = rollingFileHandler.getParentFile(this.cfg.getLogFile());
               tmpFile = File.createTempFile("mlw", null, tmpLogDir);
               // close the old guy down before we do the rename
-              PrintStream tmpps = OSProcess.redirectOutput(tmpFile,
-                  AlertAppender.getInstance().isAlertingDisabled()/* See #49492 */);
+              PrintStream tmpps = OSProcess.redirectOutput(tmpFile, this.redirectStdOut);
               PrintWriter oldPW = this.setTarget(new PrintWriter(tmpps, true));
               if (oldPW != null) {
                 oldPW.close();
@@ -263,10 +256,7 @@ public class ManagerLogWriter extends LocalLogWriter {
           }
         }
         this.activeLogFile = new File(oldName);
-        // Don't redirect sysouts/syserrs to client log file. See #49492.
-        // IMPORTANT: This assumes that only a loner would have sendAlert set to false.
-        PrintStream ps = OSProcess.redirectOutput(activeLogFile,
-            AlertAppender.getInstance().isAlertingDisabled());
+        PrintStream ps = OSProcess.redirectOutput(activeLogFile, this.redirectStdOut);
         PrintWriter oldPW = this.setTarget(new PrintWriter(ps, true), this.activeLogFile.length());
         if (oldPW != null) {
           oldPW.close();

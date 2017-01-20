@@ -94,13 +94,13 @@ public interface AdminDistributedSystem {
   public String getAlertLevelAsString();
 
   /**
-   * Registers an <code>AlertListener</code> that will receive all alerts that are at or above the
+   * Registers an <code>AlertSubscriber</code> that will receive all alerts that are at or above the
    * {@linkplain #setAlertLevel alert level}.
    */
   public void addAlertListener(AlertListener listener);
 
   /**
-   * Unregisters an <code>AlertListener</code>
+   * Unregisters an <code>AlertSubscriber</code>
    */
   public void removeAlertListener(AlertListener listener);
 

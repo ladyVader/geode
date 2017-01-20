@@ -93,7 +93,6 @@ import org.apache.geode.internal.admin.remote.RemoteTransportConfig;
 import org.apache.geode.internal.cache.DirectReplyMessage;
 import org.apache.geode.internal.cache.DistributedCacheOperation;
 import org.apache.geode.internal.i18n.LocalizedStrings;
-import org.apache.geode.internal.logging.log4j.AlertAppender;
 import org.apache.geode.internal.logging.log4j.LocalizedMessage;
 import org.apache.geode.internal.tcp.MemberShunnedException;
 
@@ -939,7 +938,7 @@ public class JGroupsMessenger implements Messenger {
     msg.setFlag(Flag.DONT_BUNDLE);
 
     if (gfmsg.getProcessorType() == DistributionManager.HIGH_PRIORITY_EXECUTOR
-        || gfmsg instanceof HighPriorityDistributionMessage || AlertAppender.isThreadAlerting()) {
+        || gfmsg instanceof HighPriorityDistributionMessage || DistributedAlertService.isThreadAlerting()) {
       msg.setFlag(Flag.NO_FC);
       msg.setFlag(Flag.SKIP_BARRIER);
     }

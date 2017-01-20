@@ -37,6 +37,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.apache.geode.distributed.internal.DistributedAlertService;
 import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.SystemFailure;
@@ -53,7 +54,6 @@ import org.apache.geode.internal.SystemTimer;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.logging.LoggingThreadGroup;
-import org.apache.geode.internal.logging.log4j.AlertAppender;
 import org.apache.geode.internal.logging.log4j.LocalizedMessage;
 
 /**
@@ -187,7 +187,7 @@ public class ConnectionTable {
   boolean threadOwnsResources() {
     DM d = getDM();
     if (d != null) {
-      return d.getSystem().threadOwnsResources() && !AlertAppender.isThreadAlerting();
+      return d.getSystem().threadOwnsResources() && !DistributedAlertService.isThreadAlerting();
     }
     return false;
 
@@ -478,7 +478,7 @@ public class ConnectionTable {
     } else { // we have existing connection
       if (mEntry instanceof PendingConnection) {
 
-        if (AlertAppender.isThreadAlerting()) {
+        if (DistributedAlertService.isThreadAlerting()) {
           // do not change the text of this exception - it is looked for in exception handlers
           throw new IOException("Cannot form connection to alert listener " + id);
         }

@@ -1181,7 +1181,7 @@ public class AdminDistributedSystemImpl implements org.apache.geode.admin.AdminD
     }
   }
 
-  // ----------- org.apache.geode.internal.admin.AlertListener -----------
+  // ----------- org.apache.geode.internal.admin.AlertSubscriber -----------
   /**
    * Listener callback for when a SystemMember of this DistributedSystem has crashed.
    *

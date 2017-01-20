@@ -17,96 +17,59 @@ package org.apache.geode.internal.logging.log4j;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.util.Date;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 
-import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.Logger;
+import org.apache.geode.distributed.internal.DistributedAlertService;
+import org.apache.geode.management.internal.alerting.AlertLevel;
+import org.apache.geode.management.internal.alerting.AlertServiceListener;
+import org.apache.geode.management.internal.alerting.AlertSubscriber;
+import org.apache.geode.management.internal.alerting.DefaultAlertHandler;
+import org.apache.geode.management.internal.alerting.AlertService;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.config.LoggerConfig;
 import org.apache.logging.log4j.core.layout.PatternLayout;
 
-import org.apache.geode.distributed.DistributedMember;
 import org.apache.geode.distributed.internal.DistributionManager;
-import org.apache.geode.distributed.internal.InternalDistributedSystem;
-import org.apache.geode.internal.admin.Alert;
-import org.apache.geode.internal.admin.remote.AlertListenerMessage;
 import org.apache.geode.internal.lang.ThreadUtils;
 import org.apache.geode.internal.logging.LogService;
-import org.apache.geode.internal.tcp.ReenteredConnectException;
+import org.apache.logging.log4j.status.StatusLogger;
 
 /**
  * A Log4j Appender which will notify listeners whenever a message of the requested level is written
  * to the log file.
  */
-public final class AlertAppender extends AbstractAppender implements PropertyChangeListener {
-  // TODO: appender impl should use StatusLogger
-  private static final Logger logger = LogService.getLogger();
+public final class AlertAppender extends AbstractAppender implements PropertyChangeListener,
+    AlertServiceListener {
+  private static final StatusLogger logger = StatusLogger.getLogger();
 
   private static final String APPENDER_NAME = AlertAppender.class.getName();
   private static final AlertAppender instance = createAlertAppender();
+  private static final NullAlertProvider nullAlertProvider = new NullAlertProvider();
 
-  /** Is this thread in the process of alerting? */
-  private static final ThreadLocal<Boolean> alerting = new ThreadLocal<Boolean>() {
-    @Override
-    protected Boolean initialValue() {
-      return Boolean.FALSE;
-    }
-  };
+  private final AtomicReference<AlertService> alertServiceRef = new AtomicReference<>(nullAlertProvider);
 
-  private static final AtomicReference<InternalDistributedSystem> system = new AtomicReference<>();
-
-  // Listeners are ordered with the narrowest levels (e.g. FATAL) at the end
-  private final CopyOnWriteArrayList<Listener> listeners = new CopyOnWriteArrayList<>();
-
-  private final AppenderContext appenderContext = LogService.getAppenderContext();
-
-  // This can be set by a loner distributed system to disable alerting
-  private volatile boolean alertingDisabled = false;
+  private final AppenderContext appenderContext;
 
   private static AlertAppender createAlertAppender() {
-    InternalDistributedSystem
-        .addConnectListener((final InternalDistributedSystem connectedSystem) -> {
-          system.set(connectedSystem);
-          connectedSystem
-              .addDisconnectListener((final InternalDistributedSystem disconnectedSystem) -> {
-                system.compareAndSet(connectedSystem, null);
-              });
-        });
-
-    AlertAppender alertAppender = new AlertAppender();
+    AlertAppender alertAppender = new AlertAppender(LogService.getAppenderContext());
     alertAppender.start();
 
     return alertAppender;
   }
 
-  private AlertAppender() {
+  private AlertAppender(final AppenderContext appenderContext) {
     super(APPENDER_NAME, null, PatternLayout.createDefaultLayout());
+    this.appenderContext = appenderContext;
   }
 
   public static AlertAppender getInstance() {
     return instance;
   }
 
-  /**
-   * Returns true if the current thread is in the process of delivering an alert message.
-   */
-  public static boolean isThreadAlerting() {
-    return alerting.get();
-  }
-
-  public boolean isAlertingDisabled() {
-    return alertingDisabled;
-  }
-
-  public void setAlertingDisabled(final boolean alertingDisabled) {
-    this.alertingDisabled = alertingDisabled;
-  }
-
-  public static void setIsAlerting(boolean isAlerting) {
-    alerting.set(isAlerting ? Boolean.TRUE : Boolean.FALSE);
+  public static void updateAlertService(final AlertService service) {
+    instance.alertServiceRef.set(service);
   }
 
   /**
@@ -116,140 +79,49 @@ public final class AlertAppender extends AbstractAppender implements PropertyCha
    */
   @Override
   public void append(final LogEvent event) {
-    if (this.alertingDisabled) {
+    AlertService alertService = this.alertServiceRef.get();
+    if (!alertService.isEnabled()) {
       return;
     }
 
     // If already appending then don't send to avoid infinite recursion
-    if ((alerting.get())) {
+    if (alertService.isAlerting()) {
       return;
     }
-    setIsAlerting(true);
+    DistributedAlertService.setIsAlerting(true);
 
     try {
+      logger.debug("Delivering an alert event: {}", event);
 
-      final boolean isDebugEnabled = logger.isDebugEnabled();
-      if (isDebugEnabled) {
-        logger.debug("Delivering an alert event: {}", event);
-      }
+      int intLevel = AlertLevel.logLevelToAlertLevel(event.getLevel().intLevel());
+      Date date = new Date(event.getTimeMillis());
+      String threadName = event.getThreadName();
+      String logMessage = event.getMessage().getFormattedMessage();
+      String stackTrace = ThreadUtils.stackTraceToString(event.getThrown(), true);
+      String connectionName = alertService.getMemberName();
 
-      InternalDistributedSystem ds = system.get();
-      if (ds == null) {
-        logger.debug("Did not append alert event because the distributed system is set to null.");
-        return;
-      }
-      DistributionManager distMgr = (DistributionManager) ds.getDistributionManager();
-
-      final int intLevel = logLevelToAlertLevel(event.getLevel().intLevel());
-      final Date date = new Date(event.getTimeMillis());
-      final String threadName = event.getThreadName();
-      final String logMessage = event.getMessage().getFormattedMessage();
-      final String stackTrace = ThreadUtils.stackTraceToString(event.getThrown(), true);
-      final String connectionName = ds.getConfig().getName();
-
-      for (Listener listener : this.listeners) {
+      for (AlertSubscriber listener : this.listeners) {
         if (event.getLevel().intLevel() > listener.getLevel().intLevel()) {
           break;
         }
 
-        try {
-          AlertListenerMessage alertMessage =
-              AlertListenerMessage.create(listener.getMember(), intLevel, date, connectionName,
-                  threadName, Thread.currentThread().getId(), logMessage, stackTrace);
-
-          if (listener.getMember().equals(distMgr.getDistributionManagerId())) {
-            if (isDebugEnabled) {
-              logger.debug("Delivering local alert message: {}, {}, {}, {}, {}, [{}], [{}].",
-                  listener.getMember(), intLevel, date, connectionName, threadName, logMessage,
-                  stackTrace);
-            }
-            alertMessage.process(distMgr);
-          } else {
-            if (isDebugEnabled) {
-              logger.debug("Delivering remote alert message: {}, {}, {}, {}, {}, [{}], [{}].",
-                  listener.getMember(), intLevel, date, connectionName, threadName, logMessage,
-                  stackTrace);
-            }
-            distMgr.putOutgoing(alertMessage);
-          }
-        } catch (ReenteredConnectException e) {
-          // OK. We can't send to this recipient because we're in the middle of
-          // trying to connect to it.
-        }
+        alertService
+            .handleAlert(alertService, intLevel, date, threadName, logMessage, stackTrace,
+            connectionName,
+            listener);
       }
     } finally {
-      setIsAlerting(false);
+      DistributedAlertService.setIsAlerting(false);
     }
-  }
-
-  public synchronized void addAlertListener(final DistributedMember member, final int alertLevel) {
-    final Level level = LogService.toLevel(alertLevelToLogLevel(alertLevel));
-
-    if (this.listeners.size() == 0) {
-      this.appenderContext.getLoggerContext().addPropertyChangeListener(this);
-    }
-
-    addListenerToSortedList(new Listener(level, member));
-
-    LoggerConfig loggerConfig = this.appenderContext.getLoggerConfig();
-    loggerConfig.addAppender(this, this.listeners.get(0).getLevel(), null);
-    if (logger.isDebugEnabled()) {
-      logger.debug("Added/Replaced alert listener for member {} at level {}", member, level);
-    }
-  }
-
-  public synchronized boolean removeAlertListener(final DistributedMember member) {
-    final boolean memberWasFound = this.listeners.remove(new Listener(null, member));
-
-    if (memberWasFound) {
-      if (this.listeners.size() == 0) {
-        this.appenderContext.getLoggerContext().removePropertyChangeListener(this);
-        this.appenderContext.getLoggerConfig().removeAppender(APPENDER_NAME);
-
-      } else {
-        LoggerConfig loggerConfig = this.appenderContext.getLoggerConfig();
-        loggerConfig.addAppender(this, this.listeners.get(0).getLevel(), null);
-      }
-      if (logger.isDebugEnabled()) {
-        logger.debug("Removed alert listener for member {}", member);
-      }
-    }
-
-    return memberWasFound;
-  }
-
-  public synchronized boolean hasAlertListener(final DistributedMember member,
-      final int alertLevel) {
-    final Level level = LogService.toLevel(alertLevelToLogLevel(alertLevel));
-
-    for (Listener listener : this.listeners) {
-      if (listener.getMember().equals(member) && listener.getLevel().equals(level)) {
-        return true;
-      }
-    }
-
-    // Special case for alert level Alert.OFF (NONE_LEVEL), because we can never have an actual
-    // listener with
-    // this level (see AlertLevelChangeMessage.process()).
-    if (alertLevel == Alert.OFF) {
-      for (Listener listener : this.listeners) {
-        if (listener.getMember().equals(member)) {
-          return false;
-        }
-      }
-      return true;
-    }
-
-    return false;
   }
 
   @Override
-  public synchronized void propertyChange(final PropertyChangeEvent evt) {
+  public synchronized void propertyChange(final PropertyChangeEvent event) {
     if (logger.isDebugEnabled()) {
       logger.debug("Responding to a property change event. Property name is {}.",
-          evt.getPropertyName());
+          event.getPropertyName());
     }
-    if (evt.getPropertyName().equals(LoggerContext.PROPERTY_CONFIG)) {
+    if (event.getPropertyName().equals(LoggerContext.PROPERTY_CONFIG)) {
       LoggerConfig loggerConfig = this.appenderContext.getLoggerConfig();
       if (!loggerConfig.getAppenders().containsKey(APPENDER_NAME)) {
         loggerConfig.addAppender(this, this.listeners.get(0).getLevel(), null);
@@ -257,115 +129,56 @@ public final class AlertAppender extends AbstractAppender implements PropertyCha
     }
   }
 
-  /**
-   * Will add (or replace) a listener to the list of sorted listeners such that listeners with a
-   * narrower level (e.g. FATAL) will be at the end of the list.
-   * 
-   * @param listener The listener to add to the list.
-   */
-  private void addListenerToSortedList(final Listener listener) {
-    if (this.listeners.contains(listener)) {
-      this.listeners.remove(listener);
-    }
-
-    for (int i = 0; i < this.listeners.size(); i++) {
-      if (listener.getLevel().compareTo(this.listeners.get(i).getLevel()) >= 0) {
-        this.listeners.add(i, listener);
-        return;
-      }
-    }
-
-    this.listeners.add(listener);
-  }
-
-  /**
-   * Converts an int alert level to an int log level.
-   * 
-   * @param alertLevel The int value for the alert level
-   * @return The int value for the matching log level
-   * @throws java.lang.IllegalArgumentException If there is no matching log level
-   */
-  public static int alertLevelToLogLevel(final int alertLevel) {
-    switch (alertLevel) {
-      case Alert.SEVERE:
-        return Level.FATAL.intLevel();
-      case Alert.ERROR:
-        return Level.ERROR.intLevel();
-      case Alert.WARNING:
-        return Level.WARN.intLevel();
-      case Alert.OFF:
-        return Level.OFF.intLevel();
-    }
-
-    throw new IllegalArgumentException("Unknown Alert level [" + alertLevel + "].");
-  }
-
-  /**
-   * Converts an int log level to an int alert level.
-   * 
-   * @param logLevel The int value for the log level
-   * @return The int value for the matching alert level
-   * @throws java.lang.IllegalArgumentException If there is no matching log level
-   */
-  public static int logLevelToAlertLevel(final int logLevel) {
-    if (logLevel == Level.FATAL.intLevel()) {
-      return Alert.SEVERE;
-    } else if (logLevel == Level.ERROR.intLevel()) {
-      return Alert.ERROR;
-    } else if (logLevel == Level.WARN.intLevel()) {
-      return Alert.WARNING;
-    } else if (logLevel == Level.OFF.intLevel()) {
-      return Alert.OFF;
-    }
-
-    throw new IllegalArgumentException("Unknown Log level [" + logLevel + "].");
-  }
-
   public synchronized void shuttingDown() {
-    this.listeners.clear();
+    this.alertServiceRef.get().shuttingDown();
     this.appenderContext.getLoggerContext().removePropertyChangeListener(this);
     this.appenderContext.getLoggerConfig().removeAppender(APPENDER_NAME);
   }
 
-  /**
-   * Simple value object which holds a DistributedMember and Level pair.
-   */
-  static class Listener {
-    private Level level;
-    private DistributedMember member;
+  @Override
+  public void clear() {
+    this.appenderContext.getLoggerContext().addPropertyChangeListener(this);
+  }
 
-    public Level getLevel() {
-      return this.level;
-    }
+  @Override
+  public void lowestLevel(final int level) {
 
-    public DistributedMember getMember() {
-      return this.member;
-    }
+  }
 
-    Listener(final Level level, final DistributedMember member) {
-      this.level = level;
-      this.member = member;
-    }
+  private static class NullAlertProvider implements AlertService {
 
-    /**
-     * Never used, but maintain the hashCode/equals contract.
-     */
     @Override
-    public int hashCode() {
-      return 31 + ((this.member == null) ? 0 : this.member.hashCode());
-    }
-
-    /**
-     * Ignore the level when determining equality.
-     */
-    @Override
-    public boolean equals(Object other) {
-      return (this.member.equals(((Listener) other).member)) ? true : false;
+    public boolean isEnabled() {
+      return false;
     }
 
     @Override
-    public String toString() {
-      return "Listener [level=" + this.level + ", member=" + this.member + "]";
+    public DistributionManager getDistributionManager() {
+      return null;
+    }
+
+    @Override
+    public String getMemberName() {
+      return null;
+    }
+
+    @Override
+    public boolean isAlerting() {
+      return false;
+    }
+
+    @Override
+    public void shuttingDown() {
+
+    }
+
+    @Override
+    public void handleAlert(final AlertService alertProvider, final int intLevel, final Date date,
+                            final String threadName,
+                            final String logMessage, final String stackTrace,
+                            final String connectionName,
+                            final AlertSubscriber listener) {
+
     }
   }
 }

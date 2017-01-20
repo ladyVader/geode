@@ -36,10 +36,8 @@ import org.apache.geode.distributed.internal.membership.gms.messages.JoinRequest
 import org.apache.geode.distributed.internal.membership.gms.messages.JoinResponseMessage;
 import org.apache.geode.distributed.internal.membership.gms.messages.LeaveRequestMessage;
 import org.apache.geode.distributed.internal.membership.gms.messenger.JGroupsMessenger.JGroupsReceiver;
-import org.apache.geode.internal.*;
 import org.apache.geode.internal.admin.remote.RemoteTransportConfig;
 import org.apache.geode.internal.cache.DistributedCacheOperation;
-import org.apache.geode.internal.logging.log4j.AlertAppender;
 import org.apache.geode.test.junit.categories.IntegrationTest;
 
 import static org.apache.geode.distributed.ConfigurationProperties.*;
@@ -223,13 +221,13 @@ public class JGroupsMessengerJUnitTest {
     messenger.setMessageFlags(dmsg, jgmsg);
     assertFalse("expected no_fc to not be set in " + jgmsg.getFlags(),
         jgmsg.isFlagSet(Message.Flag.NO_FC));
-    AlertAppender.setIsAlerting(true);
+    DistributedAlertService.setIsAlerting(true);
     try {
       messenger.setMessageFlags(dmsg, jgmsg);
       assertTrue("expected no_fc to be set in " + jgmsg.getFlags(),
           jgmsg.isFlagSet(Message.Flag.NO_FC));
     } finally {
-      AlertAppender.setIsAlerting(false);
+      DistributedAlertService.setIsAlerting(false);
     }
   }
 

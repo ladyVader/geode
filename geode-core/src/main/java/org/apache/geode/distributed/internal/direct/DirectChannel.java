@@ -27,7 +27,6 @@ import org.apache.geode.internal.net.SocketCreator;
 import org.apache.geode.internal.cache.DirectReplyMessage;
 import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.LogService;
-import org.apache.geode.internal.logging.log4j.AlertAppender;
 import org.apache.geode.internal.logging.log4j.LocalizedMessage;
 import org.apache.geode.internal.logging.log4j.LogMarker;
 import org.apache.geode.internal.tcp.*;
@@ -211,7 +210,7 @@ public class DirectChannel {
   boolean threadOwnsResources() {
     DM d = getDM();
     if (d != null) {
-      return d.getSystem().threadOwnsResources() && !AlertAppender.isThreadAlerting();
+      return d.getSystem().threadOwnsResources() && !DistributedAlertService.isThreadAlerting();
     }
     return false;
 
