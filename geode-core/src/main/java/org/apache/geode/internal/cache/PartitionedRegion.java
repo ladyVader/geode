@@ -7911,6 +7911,11 @@ public class PartitionedRegion extends LocalRegion
         }
       }
     }
+    if (colocatedWithRegion != null) {
+      synchronized (colocatedWithRegion.colocatedByList) {
+        colocatedWithRegion.colocatedByList.remove(this);
+      }
+    }
 
     RegionLogger.logDestroy(getName(), cache.getMyId(), null, op.isClose());
   }
