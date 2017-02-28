@@ -119,7 +119,7 @@ public class GfshShellConnectionRule extends DescribedExternalResource {
     // can not use Awaitility here because it starts another thead, but the Gfsh instance is in a
     // threadLocal variable, See Gfsh.getExistingInstance()
     CommandResult result = null;
-    for (int i = 0; i < 50; i++) {
+    for (int i = 0; i < 100; i++) {
       result = executeCommand(connectCommand.toString());
       if (!gfsh.outputString.contains("no such object in table")) {
         break;

@@ -15,6 +15,7 @@
 package org.apache.geode.internal;
 
 import static org.apache.geode.distributed.ConfigurationProperties.MCAST_PORT;
+import static org.apache.geode.distributed.ConfigurationProperties.NAME;
 import static org.apache.geode.internal.JarDeployer.JAR_PREFIX;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -28,8 +29,10 @@ import org.apache.geode.cache.execute.Function;
 import org.apache.geode.cache.execute.FunctionContext;
 import org.apache.geode.cache.execute.FunctionService;
 import org.apache.geode.cache.execute.ResultSender;
+import org.apache.geode.internal.cache.GemFireCacheImpl;
 import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.cache.execute.FunctionContextImpl;
+import org.apache.geode.test.dunit.rules.ServerStarterRule;
 import org.apache.geode.test.junit.categories.IntegrationTest;
 import org.junit.After;
 import org.junit.Before;
@@ -72,26 +75,28 @@ public class DeployedJarJUnitTest {
 
   private final ClassBuilder classBuilder = new ClassBuilder();
 
-  private InternalCache cache;
+  @Rule
+  public ServerStarterRule serverStarterRule = new ServerStarterRule();
 
   @Before
-  public void setup() throws IOException {
+  public void setup() throws Exception {
     System.setProperty("user.dir", temporaryFolder.newFolder().getAbsolutePath());
+      Properties properties = new Properties();
+      properties.setProperty(NAME, "myServer");
+    serverStarterRule.startServer(properties);
+
     ClassPathLoader.setLatestToDefault();
   }
 
   @After
   public void tearDown() throws Exception {
-    ClassPathLoader.setLatestToDefault();
     for (String functionName : FunctionService.getRegisteredFunctions().keySet()) {
       if (functionName.startsWith("JarClassLoaderJUnit")) {
         FunctionService.unregisterFunction(functionName);
       }
     }
 
-    if (this.cache != null) {
-      this.cache.close();
-    }
+    ClassPathLoader.setLatestToDefault();
   }
 
   @Test
@@ -241,7 +246,8 @@ public class DeployedJarJUnitTest {
   }
 
   @Test
-  public void testDeclarableFunctionsWithNoCacheXml() throws IOException, ClassNotFoundException {
+  public void testDeclarableFunctionsWithNoCacheXml() throws Exception {
+
     final String jarName = "JarClassLoaderJUnitNoXml.jar";
 
     // Add a Declarable Function without parameters for the class to the Classpath
@@ -282,13 +288,6 @@ public class DeployedJarJUnitTest {
 
   @Test
   public void testDeclarableFunctionsWithoutParms() throws IOException, ClassNotFoundException {
-    final File jarFile1 = new File("JarClassLoaderJUnit.v1.jar");
-    final File jarFile2 = new File("JarClassLoaderJUnit.v2.jar");
-
-    Properties properties = new Properties();
-    properties.setProperty(MCAST_PORT, "0");
-    CacheFactory cacheFactory = new CacheFactory(properties);
-    this.cache = (InternalCache) cacheFactory.create();
 
     // Add a Declarable Function without parameters for the class to the Classpath
     StringBuffer stringBuffer = new StringBuffer();
@@ -309,6 +308,7 @@ public class DeployedJarJUnitTest {
 
     byte[] jarBytes =
         this.classBuilder.createJarFromClassContent("JarClassLoaderJUnitFunction", functionString);
+
     ClassPathLoader.getLatest().getJarDeployer().deploy("JarClassLoaderJUnitFunction.jar",
         jarBytes);
 
@@ -332,7 +332,7 @@ public class DeployedJarJUnitTest {
     stringBuffer.append(" </function-service>");
     stringBuffer.append("</cache>");
     String cacheXmlString = stringBuffer.toString();
-    this.cache.loadCacheXml(new ByteArrayInputStream(cacheXmlString.getBytes()));
+    GemFireCacheImpl.getInstance().loadCacheXml(new ByteArrayInputStream(cacheXmlString.getBytes()));
 
     // Check to see if the function without parameters executes correctly
     Function function = FunctionService.getFunction("JarClassLoaderJUnitFunction");
@@ -358,12 +358,6 @@ public class DeployedJarJUnitTest {
 
   @Test
   public void testDeclarableFunctionsWithParms() throws IOException, ClassNotFoundException {
-
-    Properties properties = new Properties();
-    properties.setProperty(MCAST_PORT, "0");
-    CacheFactory cacheFactory = new CacheFactory(properties);
-    this.cache = (InternalCache) cacheFactory.create();
-
     // Add a Declarable Function with parameters to the class to the Classpath
     StringBuffer stringBuffer = new StringBuffer();
     stringBuffer.append("import java.util.Properties;");
@@ -417,7 +411,7 @@ public class DeployedJarJUnitTest {
     stringBuffer.append(" </function-service>");
     stringBuffer.append("</cache>");
     String cacheXmlString = stringBuffer.toString();
-    this.cache.loadCacheXml(new ByteArrayInputStream(cacheXmlString.getBytes()));
+    GemFireCacheImpl.getInstance().loadCacheXml(new ByteArrayInputStream(cacheXmlString.getBytes()));
 
     // Check to see if the functions with parameters execute correctly
     Function function = FunctionService.getFunction("JarClassLoaderJUnitFunctionA");
@@ -453,7 +447,7 @@ public class DeployedJarJUnitTest {
     cacheXmlString =
         cacheXmlString.replace("JarClassLoaderJUnitFunctionA", "JarClassLoaderJUnitFunctionC")
             .replace("CAT", "BIRD");
-    this.cache.loadCacheXml(new ByteArrayInputStream(cacheXmlString.getBytes()));
+    GemFireCacheImpl.getInstance().loadCacheXml(new ByteArrayInputStream(cacheXmlString.getBytes()));
 
     // Update the first function (change the value returned from execute)
     functionString = functionString.replace("v2", "v3");
