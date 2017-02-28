@@ -159,8 +159,7 @@ public final class DeployCommands extends AbstractCommandsSupport {
           optionContext = ConverterHint.MEMBERGROUP) @CliMetaData(
               valueSeparator = ",") String[] groups,
       @CliOption(key = {CliStrings.UNDEPLOY__JAR}, help = CliStrings.UNDEPLOY__JAR__HELP,
-          unspecifiedDefaultValue = CliMetaData.ANNOTATION_NULL_VALUE) @CliMetaData(
-              valueSeparator = ",") String jars) {
+          unspecifiedDefaultValue = CliMetaData.ANNOTATION_NULL_VALUE)  String jars) {
 
     try {
       TabularResultData tabularData = ResultBuilder.createTabularResultData();

@@ -492,7 +492,11 @@ public class JarDeployer implements Serializable {
   private boolean shouldDeployNewVersion(String jarName, byte[] newJarBytes) throws IOException {
     DeployedJar oldDeployedJar = this.deployedJars.get(jarName);
 
-    if (oldDeployedJar != null && oldDeployedJar.hasSameContentAs(newJarBytes)) {
+    if (oldDeployedJar == null) {
+      return true;
+    }
+
+    if (oldDeployedJar.hasSameContentAs(newJarBytes)) {
       logger.warn("Jar is identical to the latest deployed version: ",
           oldDeployedJar.getFileCanonicalPath());
 

@@ -16,6 +16,7 @@ package org.apache.geode.management.internal.cli.functions;
 
 import java.util.List;
 
+import org.apache.geode.internal.ClassPathLoader;
 import org.apache.geode.internal.DeployedJar;
 import org.apache.logging.log4j.Logger;
 
@@ -45,8 +46,7 @@ public class ListDeployedFunction implements Function, InternalEntity {
 
     try {
       Cache cache = CacheFactory.getAnyInstance();
-      final JarDeployer jarDeployer = new JarDeployer(
-          ((GemFireCacheImpl) cache).getDistributedSystem().getConfig().getDeployWorkingDir());
+      final JarDeployer jarDeployer = ClassPathLoader.getLatest().getJarDeployer();
 
       DistributedMember member = cache.getDistributedSystem().getDistributedMember();
 
